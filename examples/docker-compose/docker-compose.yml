@@ -2,7 +2,7 @@ services:
   ojs-server:
     build:
       context: ../..
-      dockerfile: Dockerfile
+      dockerfile: docker/Dockerfile
     ports:
       - "8080:8080"
       - "9090:9090"

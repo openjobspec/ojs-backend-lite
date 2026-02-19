@@ -1,0 +1,28 @@
+services:
+  ojs-server:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    environment:
+      - OJS_PORT=8080
+      - OJS_GRPC_PORT=9090
+      - OJS_ALLOW_INSECURE_NO_AUTH=true
+
+  ojs-server-dev:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    environment:
+      - OJS_PORT=8080
+      - OJS_GRPC_PORT=9090
+      - OJS_ALLOW_INSECURE_NO_AUTH=true
+    volumes:
+      - ..:/app
+    profiles:
+      - dev
