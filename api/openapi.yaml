@@ -1,0 +1,837 @@
+openapi: "3.0.3"
+info:
+  title: OJS Backend-Lite API
+  description: |
+    Open Job Spec (OJS) lightweight backend HTTP API.
+    All endpoints use `application/openjobspec+json` (or `application/json`) as content type.
+  version: 1.0.0-rc.1
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: System
+    description: Health and manifest endpoints
+  - name: Jobs
+    description: Job lifecycle management
+  - name: Workers
+    description: Worker fetch/ack/nack/heartbeat
+  - name: Queues
+    description: Queue management
+  - name: Dead Letter
+    description: Dead letter queue operations
+  - name: Cron
+    description: Cron job scheduling
+  - name: Workflows
+    description: Workflow orchestration
+  - name: Admin
+    description: Admin control plane
+  - name: Real-time
+    description: SSE and WebSocket event streams
+
+paths:
+  /ojs/manifest:
+    get:
+      tags: [System]
+      summary: Get OJS manifest
+      operationId: getManifest
+      responses:
+        "200":
+          description: Manifest
+          content:
+            application/openjobspec+json:
+              schema:
+                $ref: "#/components/schemas/Manifest"
+
+  /ojs/v1/health:
+    get:
+      tags: [System]
+      summary: Health check
+      operationId: getHealth
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/openjobspec+json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "503":
+          description: Unhealthy
+
+  /ojs/v1/jobs:
+    post:
+      tags: [Jobs]
+      summary: Enqueue a job
+      operationId: createJob
+      requestBody:
+        required: true
+        content:
+          application/openjobspec+json:
+            schema:
+              $ref: "#/components/schemas/EnqueueRequest"
+      responses:
+        "201":
+          description: Job created
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/openjobspec+json:
+              schema:
+                type: object
+                properties:
+                  job:
+                    $ref: "#/components/schemas/Job"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /ojs/v1/jobs/{id}:
+    get:
+      tags: [Jobs]
+      summary: Get job by ID
+      operationId: getJob
+      parameters:
+        - $ref: "#/components/parameters/JobID"
+      responses:
+        "200":
+          description: Job details
+          content:
+            application/openjobspec+json:
+              schema:
+                type: object
+                properties:
+                  job:
+                    $ref: "#/components/schemas/Job"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Jobs]
+      summary: Cancel a job
+      operationId: cancelJob
+      parameters:
+        - $ref: "#/components/parameters/JobID"
+      responses:
+        "200":
+          description: Job cancelled
+          content:
+            application/openjobspec+json:
+              schema:
+                type: object
+                properties:
+                  job:
+                    $ref: "#/components/schemas/Job"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /ojs/v1/jobs/batch:
+    post:
+      tags: [Jobs]
+      summary: Batch enqueue jobs
+      operationId: batchCreateJobs
+      requestBody:
+        required: true
+        content:
+          application/openjobspec+json:
+            schema:
+              type: object
+              required: [jobs]
+              properties:
+                jobs:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/EnqueueRequest"
+      responses:
+        "201":
+          description: Jobs created
+          content:
+            application/openjobspec+json:
+              schema:
+                type: object
+                properties:
+                  jobs:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Job"
+                  count:
+                    type: integer
+
+  /ojs/v1/workers/fetch:
+    post:
+      tags: [Workers]
+      summary: Fetch jobs for a worker
+      operationId: workerFetch
+      requestBody:
+        required: true
+        content:
+          application/openjobspec+json:
+            schema:
+              $ref: "#/components/schemas/FetchRequest"
+      responses:
+        "200":
+          description: Fetched jobs
+          content:
+            application/openjobspec+json:
+              schema:
+                type: object
+                properties:
+                  jobs:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Job"
+
+  /ojs/v1/workers/ack:
+    post:
+      tags: [Workers]
+      summary: Acknowledge job completion
+      operationId: workerAck
+      requestBody:
+        required: true
+        content:
+          application/openjobspec+json:
+            schema:
+              type: object
+              required: [job_id]
+              properties:
+                job_id:
+                  type: string
+                result:
+                  type: object
+      responses:
+        "200":
+          description: Acknowledged
+          content:
+            application/openjobspec+json:
+              schema:
+                $ref: "#/components/schemas/AckResponse"
+
+  /ojs/v1/workers/nack:
+    post:
+      tags: [Workers]
+      summary: Reject a job
+      operationId: workerNack
+      requestBody:
+        required: true
+        content:
+          application/openjobspec+json:
+            schema:
+              type: object
+              required: [job_id]
+              properties:
+                job_id:
+                  type: string
+                error:
+                  type: object
+                requeue:
+                  type: boolean
+      responses:
+        "200":
+          description: Nack response
+          content:
+            application/openjobspec+json:
+              schema:
+                $ref: "#/components/schemas/NackResponse"
+
+  /ojs/v1/workers/heartbeat:
+    post:
+      tags: [Workers]
+      summary: Worker heartbeat
+      operationId: workerHeartbeat
+      requestBody:
+        required: true
+        content:
+          application/openjobspec+json:
+            schema:
+              type: object
+              required: [worker_id]
+              properties:
+                worker_id:
+                  type: string
+                active_jobs:
+                  type: array
+                  items:
+                    type: string
+                visibility_ms:
+                  type: integer
+      responses:
+        "200":
+          description: Heartbeat response
+          content:
+            application/openjobspec+json:
+              schema:
+                $ref: "#/components/schemas/HeartbeatResponse"
+
+  /ojs/v1/queues:
+    get:
+      tags: [Queues]
+      summary: List queues
+      operationId: listQueues
+      responses:
+        "200":
+          description: Queue list
+
+  /ojs/v1/queues/{name}/stats:
+    get:
+      tags: [Queues]
+      summary: Get queue statistics
+      operationId: getQueueStats
+      parameters:
+        - $ref: "#/components/parameters/QueueName"
+      responses:
+        "200":
+          description: Queue stats
+
+  /ojs/v1/queues/{name}/pause:
+    post:
+      tags: [Queues]
+      summary: Pause a queue
+      operationId: pauseQueue
+      parameters:
+        - $ref: "#/components/parameters/QueueName"
+      responses:
+        "200":
+          description: Queue paused
+
+  /ojs/v1/queues/{name}/resume:
+    post:
+      tags: [Queues]
+      summary: Resume a queue
+      operationId: resumeQueue
+      parameters:
+        - $ref: "#/components/parameters/QueueName"
+      responses:
+        "200":
+          description: Queue resumed
+
+  /ojs/v1/dead-letter:
+    get:
+      tags: [Dead Letter]
+      summary: List dead letter jobs
+      operationId: listDeadLetter
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Dead letter jobs
+
+  /ojs/v1/dead-letter/{id}/retry:
+    post:
+      tags: [Dead Letter]
+      summary: Retry a dead letter job
+      operationId: retryDeadLetter
+      parameters:
+        - $ref: "#/components/parameters/JobID"
+      responses:
+        "200":
+          description: Job retried
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /ojs/v1/dead-letter/{id}:
+    delete:
+      tags: [Dead Letter]
+      summary: Delete a dead letter job
+      operationId: deleteDeadLetter
+      parameters:
+        - $ref: "#/components/parameters/JobID"
+      responses:
+        "200":
+          description: Deleted
+
+  /ojs/v1/cron:
+    get:
+      tags: [Cron]
+      summary: List cron jobs
+      operationId: listCron
+      responses:
+        "200":
+          description: Cron jobs
+    post:
+      tags: [Cron]
+      summary: Register a cron job
+      operationId: registerCron
+      requestBody:
+        required: true
+        content:
+          application/openjobspec+json:
+            schema:
+              $ref: "#/components/schemas/CronJobRequest"
+      responses:
+        "201":
+          description: Cron job registered
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /ojs/v1/cron/{name}:
+    delete:
+      tags: [Cron]
+      summary: Delete a cron job
+      operationId: deleteCron
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cron job deleted
+
+  /ojs/v1/workflows:
+    post:
+      tags: [Workflows]
+      summary: Create a workflow
+      operationId: createWorkflow
+      requestBody:
+        required: true
+        content:
+          application/openjobspec+json:
+            schema:
+              $ref: "#/components/schemas/WorkflowRequest"
+      responses:
+        "201":
+          description: Workflow created
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /ojs/v1/workflows/{id}:
+    get:
+      tags: [Workflows]
+      summary: Get workflow by ID
+      operationId: getWorkflow
+      parameters:
+        - $ref: "#/components/parameters/WorkflowID"
+      responses:
+        "200":
+          description: Workflow details
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Workflows]
+      summary: Cancel a workflow
+      operationId: cancelWorkflow
+      parameters:
+        - $ref: "#/components/parameters/WorkflowID"
+      responses:
+        "200":
+          description: Workflow cancelled
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /ojs/v1/jobs/{id}/events:
+    get:
+      tags: [Real-time]
+      summary: SSE stream for job events
+      operationId: jobEventStream
+      parameters:
+        - $ref: "#/components/parameters/JobID"
+      responses:
+        "200":
+          description: SSE event stream
+          content:
+            text/event-stream: {}
+
+  /ojs/v1/queues/{name}/events:
+    get:
+      tags: [Real-time]
+      summary: SSE stream for queue events
+      operationId: queueEventStream
+      parameters:
+        - $ref: "#/components/parameters/QueueName"
+      responses:
+        "200":
+          description: SSE event stream
+          content:
+            text/event-stream: {}
+
+  /ojs/v1/ws:
+    get:
+      tags: [Real-time]
+      summary: WebSocket for real-time events
+      operationId: websocket
+      description: |
+        Upgrade to WebSocket. Subscribe with `{"action":"subscribe","channel":"job:{id}"}`.
+      responses:
+        "101":
+          description: WebSocket upgrade
+
+  /ojs/v1/admin/stats:
+    get:
+      tags: [Admin]
+      summary: Get system statistics
+      operationId: adminStats
+      responses:
+        "200":
+          description: System stats
+
+  /ojs/v1/admin/queues:
+    get:
+      tags: [Admin]
+      summary: List queues with counts
+      operationId: adminListQueues
+      responses:
+        "200":
+          description: Queue list with counts
+
+  /ojs/v1/admin/jobs:
+    get:
+      tags: [Admin]
+      summary: List jobs with filters
+      operationId: adminListJobs
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            enum: [available, active, completed, scheduled, retryable, cancelled, discarded]
+        - name: queue
+          in: query
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 25
+      responses:
+        "200":
+          description: Paginated job list
+
+  /ojs/v1/admin/workers:
+    get:
+      tags: [Admin]
+      summary: List workers
+      operationId: adminListWorkers
+      responses:
+        "200":
+          description: Worker list with summary
+
+components:
+  parameters:
+    JobID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    QueueName:
+      name: name
+      in: path
+      required: true
+      schema:
+        type: string
+    WorkflowID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/openjobspec+json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Resource not found
+      content:
+        application/openjobspec+json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: Conflict
+      content:
+        application/openjobspec+json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: API key via Bearer token (set OJS_API_KEY)
+
+  schemas:
+    Job:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        queue:
+          type: string
+        state:
+          type: string
+          enum: [scheduled, available, pending, active, retryable, completed, cancelled, discarded]
+        args:
+          type: object
+        meta:
+          type: object
+        priority:
+          type: integer
+        attempt:
+          type: integer
+        max_attempts:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        enqueued_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        scheduled_at:
+          type: string
+          format: date-time
+
+    EnqueueRequest:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+        args:
+          type: object
+        meta:
+          type: object
+        options:
+          $ref: "#/components/schemas/EnqueueOptions"
+
+    EnqueueOptions:
+      type: object
+      properties:
+        queue:
+          type: string
+          default: default
+        priority:
+          type: integer
+        retry:
+          $ref: "#/components/schemas/RetryPolicy"
+        unique:
+          $ref: "#/components/schemas/UniquePolicy"
+        scheduled_at:
+          type: string
+          format: date-time
+        tags:
+          type: array
+          items:
+            type: string
+
+    RetryPolicy:
+      type: object
+      properties:
+        max_attempts:
+          type: integer
+          default: 3
+        initial_interval:
+          type: string
+        max_interval:
+          type: string
+        backoff_coefficient:
+          type: number
+
+    UniquePolicy:
+      type: object
+      properties:
+        keys:
+          type: array
+          items:
+            type: string
+        on_conflict:
+          type: string
+          enum: [reject, ignore, replace]
+
+    FetchRequest:
+      type: object
+      required: [queues]
+      properties:
+        queues:
+          type: array
+          items:
+            type: string
+        count:
+          type: integer
+          default: 1
+        worker_id:
+          type: string
+        visibility_ms:
+          type: integer
+
+    AckResponse:
+      type: object
+      properties:
+        acknowledged:
+          type: boolean
+        job_id:
+          type: string
+        state:
+          type: string
+        completed_at:
+          type: string
+          format: date-time
+
+    NackResponse:
+      type: object
+      properties:
+        job_id:
+          type: string
+        state:
+          type: string
+        attempt:
+          type: integer
+        max_attempts:
+          type: integer
+
+    HeartbeatResponse:
+      type: object
+      properties:
+        state:
+          type: string
+        directive:
+          type: string
+          enum: [continue, quiet]
+        jobs_extended:
+          type: array
+          items:
+            type: string
+        server_time:
+          type: string
+          format: date-time
+
+    CronJobRequest:
+      type: object
+      required: [name, expression, job_template]
+      properties:
+        name:
+          type: string
+        expression:
+          type: string
+        timezone:
+          type: string
+        overlap_policy:
+          type: string
+          enum: [allow, skip]
+        job_template:
+          type: object
+          required: [type]
+          properties:
+            type:
+              type: string
+            args:
+              type: object
+            options:
+              $ref: "#/components/schemas/EnqueueOptions"
+
+    WorkflowRequest:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [chain, group, batch]
+        name:
+          type: string
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkflowStep"
+        jobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkflowStep"
+
+    WorkflowStep:
+      type: object
+      required: [type]
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        args:
+          type: object
+        options:
+          $ref: "#/components/schemas/EnqueueOptions"
+
+    Manifest:
+      type: object
+      properties:
+        specversion:
+          type: string
+        implementation:
+          type: object
+        conformance_level:
+          type: integer
+        protocols:
+          type: array
+          items:
+            type: string
+        capabilities:
+          type: object
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        version:
+          type: string
+        uptime_seconds:
+          type: integer
+        backend:
+          type: object
+          properties:
+            type:
+              type: string
+            status:
+              type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            request_id:
+              type: string
+
+security:
+  - BearerAuth: []
