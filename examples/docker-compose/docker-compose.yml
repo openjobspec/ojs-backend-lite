@@ -1,0 +1,25 @@
+services:
+  ojs-server:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    environment:
+      - OJS_ALLOW_INSECURE_NO_AUTH=true
+      - OJS_PERSIST=/data/ojs-lite.db
+      - OJS_RETENTION_COMPLETED=1h
+      - OJS_RETENTION_CANCELLED=24h
+      - OJS_RETENTION_DISCARDED=24h
+    volumes:
+      - ojs-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/ojs/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  ojs-data:
