@@ -47,5 +47,15 @@ jobs:
       - name: Test
         run: go test ./... -race -cover -coverprofile=coverage.out
 
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print substr($3, 1, length($3)-1)}')
+          echo "Total coverage: ${COVERAGE}%"
+          THRESHOLD=40
+          if [ "$(echo "${COVERAGE} < ${THRESHOLD}" | bc -l)" -eq 1 ]; then
+            echo "::error::Coverage ${COVERAGE}% is below minimum threshold of ${THRESHOLD}%"
+            exit 1
+          fi
+
       - name: Build
         run: go build -o bin/ojs-server ./cmd/ojs-server
