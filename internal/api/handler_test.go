@@ -105,8 +105,8 @@ func TestPostJob(t *testing.T) {
 	}
 
 	// Verify OJS-Version header
-	if version := resp.Header.Get("OJS-Version"); version != "1.0.0-rc.1" {
-		t.Errorf("Expected OJS-Version 1.0.0-rc.1, got %s", version)
+	if version := resp.Header.Get("OJS-Version"); version != "1.0" {
+		t.Errorf("Expected OJS-Version 1.0, got %s", version)
 	}
 }
 
@@ -946,8 +946,8 @@ func TestOJSVersionHeader(t *testing.T) {
 		t.Error("OJS-Version header should be present")
 	}
 
-	if version != "1.0.0-rc.1" {
-		t.Errorf("Expected OJS-Version 1.0.0-rc.1, got %s", version)
+	if version != "1.0" {
+		t.Errorf("Expected OJS-Version 1.0, got %s", version)
 	}
 }
 
