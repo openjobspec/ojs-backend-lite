@@ -12,6 +12,8 @@ import (
 
 	"google.golang.org/grpc"
 
+	ojsotel "github.com/openjobspec/ojs-go-backend-common/otel"
+
 	"github.com/openjobspec/ojs-backend-lite/internal/core"
 	"github.com/openjobspec/ojs-backend-lite/internal/events"
 	ojsgrpc "github.com/openjobspec/ojs-backend-lite/internal/grpc"
@@ -26,6 +28,22 @@ func main() {
 		slog.Error("refusing to start without API authentication", "hint", "set OJS_API_KEY or OJS_ALLOW_INSECURE_NO_AUTH=true for local development")
 		os.Exit(1)
 	}
+	if cfg.AllowInsecureNoAuth {
+		slog.Warn("⚠️  RUNNING WITHOUT AUTHENTICATION — this is intended for local development only. Set OJS_API_KEY for any shared or production environment.")
+	}
+
+	// Initialize OpenTelemetry (opt-in via OJS_OTEL_ENABLED)
+	otelShutdown, err := ojsotel.Init(context.Background(), ojsotel.Config{
+		ServiceName:    "ojs-backend-lite",
+		ServiceVersion: core.OJSVersion,
+		Enabled:        os.Getenv("OJS_OTEL_ENABLED") == "true",
+		Endpoint:       os.Getenv("OJS_OTEL_ENDPOINT"),
+	})
+	if err != nil {
+		slog.Error("failed to initialize OpenTelemetry", "error", err)
+		os.Exit(1)
+	}
+	defer func() { _ = otelShutdown(context.Background()) }()
 
 	// Create in-memory backend
 	var opts []memory.Option
