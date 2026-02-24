@@ -5,7 +5,7 @@ go 1.24
 require (
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/openjobspec/ojs-go-backend-common v0.0.0
-	github.com/openjobspec/ojs-proto v0.0.0-00010101000000-000000000000
+	github.com/openjobspec/ojs-proto v0.0.0
 	github.com/robfig/cron/v3 v3.0.1
 	google.golang.org/grpc v1.79.1
 	google.golang.org/protobuf v1.36.11
