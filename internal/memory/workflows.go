@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/openjobspec/ojs-backend-lite/internal/core"
@@ -328,7 +329,9 @@ func (b *MemoryBackend) fireWorkflowCallbacks(ctx context.Context, state *workfl
 		Queue: queue,
 	}
 
-	b.Push(ctx, job)
+	if _, err := b.Push(ctx, job); err != nil {
+		slog.Error("workflow: error firing callback", "type", callback.Type, "error", err)
+	}
 }
 
 func workflowJobToJob(step core.WorkflowJobRequest, workflowID string, stepIdx int) *core.Job {
