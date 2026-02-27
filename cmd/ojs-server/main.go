@@ -170,3 +170,4 @@ func printBanner(cfg server.Config) {
 	fmt.Println("  Press Ctrl+C to stop")
 	fmt.Println()
 }
+
