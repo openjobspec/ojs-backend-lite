@@ -78,6 +78,7 @@ type MemoryBackend struct {
 	retentionDiscarded time.Duration
 	persist            persistStore
 	startTime          time.Time
+	checkpoints        *checkpointStore
 }
 
 type Option func(*MemoryBackend) error
@@ -116,6 +117,7 @@ func New(opts ...Option) (*MemoryBackend, error) {
 		retentionCancelled: 24 * time.Hour,
 		retentionDiscarded: 24 * time.Hour,
 		startTime:          time.Now(),
+		checkpoints:        newCheckpointStore(),
 	}
 
 	for _, opt := range opts {
