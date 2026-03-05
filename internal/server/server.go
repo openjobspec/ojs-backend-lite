@@ -6,6 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	commonapi "github.com/openjobspec/ojs-go-backend-common/api"
 	ojsotel "github.com/openjobspec/ojs-go-backend-common/otel"
 
 	"github.com/openjobspec/ojs-backend-lite/internal/admin"
@@ -129,6 +130,9 @@ func NewRouterWithRealtime(backend core.Backend, cfg Config, publisher core.Even
 	// Admin UI (embedded SPA)
 	r.Handle("/ojs/admin", http.RedirectHandler("/ojs/admin/", http.StatusMovedPermanently))
 	r.Mount("/ojs/admin/", http.StripPrefix("/ojs/admin/", admin.Handler()))
+
+	// API documentation (Swagger UI)
+	commonapi.RegisterDocsRoutes(r, api.OpenAPISpec)
 
 	return r
 }
