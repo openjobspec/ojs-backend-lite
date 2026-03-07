@@ -29,3 +29,4 @@ issues:
     - internal/admin/dist
   max-issues-per-linter: 50
   max-same-issues: 3
+
