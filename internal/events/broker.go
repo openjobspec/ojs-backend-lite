@@ -173,3 +173,4 @@ func (b *Broker) Close() error {
 
 	return nil
 }
+
