@@ -65,6 +65,8 @@ func NewRouterWithRealtime(backend core.Backend, cfg Config, publisher core.Even
 	r.Get("/ojs/manifest", systemHandler.Manifest)
 	r.Get("/ojs/v1/health", systemHandler.Health)
 	r.Get("/ojs/v1/health/detail", healthDetailHandler.HealthDetail)
+	r.Get("/healthz", systemHandler.Healthz)
+	r.Get("/readyz", systemHandler.Readyz)
 
 	// Metrics endpoint (Prometheus-compatible)
 	r.Get("/metrics", api.MetricsHandler)
