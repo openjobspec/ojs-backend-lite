@@ -127,7 +127,7 @@ func (b *MemoryBackend) Ack(ctx context.Context, jobID string, result []byte) (*
 
 	return &core.AckResponse{
 		Acknowledged: true,
-		JobID:        jobID,
+		ID:        jobID,
 		State:        core.StateCompleted,
 		CompletedAt:  job.CompletedAt,
 	}, nil
@@ -173,7 +173,7 @@ func (b *MemoryBackend) Nack(ctx context.Context, jobID string, jobErr *core.Job
 	}
 
 	resp := &core.NackResponse{
-		JobID:       jobID,
+		ID:       jobID,
 		Attempt:     job.Attempt,
 		MaxAttempts: maxAttempts,
 	}

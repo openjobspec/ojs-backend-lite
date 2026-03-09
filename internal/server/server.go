@@ -7,7 +7,9 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	commonapi "github.com/openjobspec/ojs-go-backend-common/api"
+	commoncore "github.com/openjobspec/ojs-go-backend-common/core"
 	ojsotel "github.com/openjobspec/ojs-go-backend-common/otel"
+	"github.com/openjobspec/ojs-go-backend-common/registry"
 
 	"github.com/openjobspec/ojs-backend-lite/internal/admin"
 	"github.com/openjobspec/ojs-backend-lite/internal/api"
@@ -48,6 +50,10 @@ func NewRouterWithRealtime(backend core.Backend, cfg Config, publisher core.Even
 	batchHandler := api.NewBatchHandler(backend)
 	adminHandler := api.NewAdminHandler(backend)
 	healthDetailHandler := api.NewHealthDetailHandler(backend)
+
+	// Enable schema validation via in-memory registry
+	schemaReg := commoncore.NewMemorySchemaRegistry()
+	jobHandler.SetSchemaRegistry(schemaReg)
 
 	// Wire event publisher into handlers
 	if publisher != nil {
@@ -97,6 +103,18 @@ func NewRouterWithRealtime(backend core.Backend, cfg Config, publisher core.Even
 	r.Post("/ojs/v1/workflows", workflowHandler.Create)
 	r.Get("/ojs/v1/workflows/{id}", workflowHandler.Get)
 	r.Delete("/ojs/v1/workflows/{id}", workflowHandler.Cancel)
+
+	// Schema registry API
+	schemaRegistry := registry.NewSchemaRegistry()
+	schemaHandler := registry.NewSchemaHandler(schemaRegistry)
+	r.Post("/ojs/v1/schemas", schemaHandler.HandleRegister)
+	r.Get("/ojs/v1/schemas/{jobType}", schemaHandler.HandleGetLatest)
+	r.Get("/ojs/v1/schemas/{jobType}/versions", schemaHandler.HandleListVersions)
+	r.Get("/ojs/v1/schemas/{jobType}/versions/{version}", schemaHandler.HandleGetVersion)
+	r.Post("/ojs/v1/schemas/{jobType}/validate", schemaHandler.HandleValidate)
+	r.Put("/ojs/v1/schemas/{jobType}/compatibility", schemaHandler.HandleSetCompatibility)
+	r.Delete("/ojs/v1/schemas/{jobType}", schemaHandler.HandleDelete)
+	r.Delete("/ojs/v1/schemas/{jobType}/versions/{version}", schemaHandler.HandleDelete)
 
 	// Admin API endpoints (control plane)
 	r.Get("/ojs/v1/admin/stats", adminHandler.Stats)
