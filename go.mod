@@ -9,7 +9,7 @@ require (
 	github.com/openjobspec/ojs-go-backend-common v0.0.0
 	github.com/openjobspec/ojs-proto v0.0.0
 	github.com/robfig/cron/v3 v3.0.1
-	google.golang.org/grpc v1.79.1
+	google.golang.org/grpc v1.79.2
 	google.golang.org/protobuf v1.36.11
 	modernc.org/sqlite v1.46.0
 	nhooyr.io/websocket v1.8.17
