@@ -77,16 +77,23 @@ func (b *MemoryBackend) CreateWorkflow(ctx context.Context, req *core.WorkflowRe
 	}
 	b.mu.Unlock()
 
-	// Push jobs outside the lock
+	// Push jobs outside the lock, collect IDs
+	var createdIDs []string
 	for _, job := range jobsToEnqueue {
 		created, err := b.Push(ctx, job)
 		if err != nil {
 			return nil, err
 		}
-		b.mu.Lock()
-		state.JobIDs = append(state.JobIDs, created.ID)
-		b.mu.Unlock()
+		createdIDs = append(createdIDs, created.ID)
 	}
+
+	// Batch-append all IDs under a single lock acquisition
+	b.mu.Lock()
+	state.JobIDs = append(state.JobIDs, createdIDs...)
+	if b.persist != nil {
+		b.persist.SaveWorkflow(wfID, state)
+	}
+	b.mu.Unlock()
 
 	return wf, nil
 }
@@ -152,6 +159,16 @@ func (b *MemoryBackend) CancelWorkflow(ctx context.Context, id string) (*core.Wo
 			jobsToCancel = append(jobsToCancel, jobID)
 		}
 	}
+
+	// Mark workflow as cancelled BEFORE releasing lock to prevent
+	// AdvanceWorkflow from overwriting the state.
+	now := time.Now()
+	state.State = "cancelled"
+	state.CompletedAt = core.FormatTime(now)
+	if b.persist != nil {
+		b.persist.SaveWorkflow(id, state)
+	}
+
 	b.mu.Unlock()
 
 	// Cancel jobs outside the lock
@@ -159,15 +176,7 @@ func (b *MemoryBackend) CancelWorkflow(ctx context.Context, id string) (*core.Wo
 		b.Cancel(ctx, jobID)
 	}
 
-	b.mu.Lock()
-	now := time.Now()
-	state.State = "cancelled"
-	state.CompletedAt = core.FormatTime(now)
-
-	if b.persist != nil {
-		b.persist.SaveWorkflow(id, state)
-	}
-
+	b.mu.RLock()
 	wf := &core.Workflow{
 		ID:          state.ID,
 		Name:        state.Name,
@@ -184,7 +193,7 @@ func (b *MemoryBackend) CancelWorkflow(ctx context.Context, id string) (*core.Wo
 		wf.JobsTotal = &state.Total
 		wf.JobsCompleted = &state.Completed
 	}
-	b.mu.Unlock()
+	b.mu.RUnlock()
 
 	return wf, nil
 }

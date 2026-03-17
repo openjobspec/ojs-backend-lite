@@ -11,6 +11,7 @@ type Broker struct {
 	mu          sync.RWMutex
 	subscribers map[string][]chan *core.JobEvent // channel key → subscriber channels
 	allSubs     []chan *core.JobEvent            // global subscribers
+	closed      map[chan *core.JobEvent]struct{} // tracks already-closed channels
 	bufSize     int
 }
 
@@ -19,7 +20,17 @@ func NewBroker() *Broker {
 	return &Broker{
 		subscribers: make(map[string][]chan *core.JobEvent),
 		allSubs:     make([]chan *core.JobEvent, 0),
+		closed:      make(map[chan *core.JobEvent]struct{}),
 		bufSize:     64,
+	}
+}
+
+// safeClose closes a channel only if it hasn't been closed already.
+// Must be called under b.mu lock.
+func (b *Broker) safeClose(ch chan *core.JobEvent) {
+	if _, ok := b.closed[ch]; !ok {
+		close(ch)
+		b.closed[ch] = struct{}{}
 	}
 }
 
@@ -93,7 +104,7 @@ func (b *Broker) SubscribeJob(jobID string) (<-chan *core.JobEvent, func(), erro
 		if len(b.subscribers[key]) == 0 {
 			delete(b.subscribers, key)
 		}
-		close(ch)
+		b.safeClose(ch)
 	}
 
 	return ch, unsub, nil
@@ -122,7 +133,7 @@ func (b *Broker) SubscribeQueue(queue string) (<-chan *core.JobEvent, func(), er
 		if len(b.subscribers[key]) == 0 {
 			delete(b.subscribers, key)
 		}
-		close(ch)
+		b.safeClose(ch)
 	}
 
 	return ch, unsub, nil
@@ -146,7 +157,7 @@ func (b *Broker) SubscribeAll() (<-chan *core.JobEvent, func(), error) {
 				break
 			}
 		}
-		close(ch)
+		b.safeClose(ch)
 	}
 
 	return ch, unsub, nil
@@ -160,11 +171,11 @@ func (b *Broker) Close() error {
 	// Close all channels
 	for _, subs := range b.subscribers {
 		for _, ch := range subs {
-			close(ch)
+			b.safeClose(ch)
 		}
 	}
 	for _, ch := range b.allSubs {
-		close(ch)
+		b.safeClose(ch)
 	}
 
 	// Clear maps
