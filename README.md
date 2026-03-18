@@ -1,4 +1,5 @@
 # ojs-backend-lite
+[![Stability: stable](https://img.shields.io/badge/stability-stable-brightgreen.svg)](https://github.com/openjobspec/openjobspec/blob/main/STABILITY.md)
 
 The lightweight, zero-dependency OJS backend for local development and testing. No Docker, no Redis, no PostgreSQL — just one binary.
 
