@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -208,7 +209,10 @@ func (b *MemoryBackend) FireCronJobs(ctx context.Context) error {
 
 		if cronJob.OverlapPolicy == "skip" {
 			meta := map[string]any{"cron_name": cronJob.Name}
-			metaJSON, _ := json.Marshal(meta)
+			metaJSON, marshalErr := json.Marshal(meta)
+			if marshalErr != nil {
+				slog.Warn("fire cron: failed to marshal cron metadata", "name", cronJob.Name, "error", marshalErr)
+			}
 			job.Meta = metaJSON
 		}
 

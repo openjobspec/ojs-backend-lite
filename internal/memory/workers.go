@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"time"
 
 	"github.com/openjobspec/ojs-backend-lite/internal/core"
@@ -153,7 +154,11 @@ func (b *MemoryBackend) Nack(ctx context.Context, jobID string, jobErr *core.Job
 	now := time.Now()
 
 	if jobErr != nil {
-		errJSON, _ := json.Marshal(jobErr)
+		errJSON, marshalErr := json.Marshal(jobErr)
+		if marshalErr != nil {
+			slog.Warn("nack: failed to marshal job error", "job_id", job.ID, "error", marshalErr)
+			errJSON = []byte(`{"message":"marshal error"}`)
+		}
 		job.Error = errJSON
 		if job.Errors == nil {
 			job.Errors = []json.RawMessage{}
